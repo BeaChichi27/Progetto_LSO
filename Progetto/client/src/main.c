@@ -4,9 +4,9 @@
 #include <winsock2.h>
 #include <windows.h>
 #include <conio.h>
-#include "network.h"
-#include "game_logic.h"
-#include "ui.h"
+#include "headers/network.h"
+#include "headers/game_logic.h"
+#include "headers/ui.h"
 
 void get_board_position(int move, int* row, int* col) {
     *row = (move - 1) / 3;
