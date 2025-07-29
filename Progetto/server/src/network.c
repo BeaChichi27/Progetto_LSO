@@ -172,7 +172,8 @@ DWORD WINAPI network_handle_udp_thread(LPVOID arg) {
         if (strncmp(buffer, "MOVE:", 5) == 0) {
             int row, col;
             if (sscanf(buffer + 5, "%d,%d", &row, &col) == 2) {
-                EnterCriticalSection(&lobby_mutex);
+                CRITICAL_SECTION* mutex = lobby_get_mutex();
+                EnterCriticalSection(mutex);
                 for (int i = 0; i < MAX_CLIENTS; i++) {
                     if (clients[i] && 
                         clients[i]->udp_addr.sin_addr.s_addr == client_addr.sin_addr.s_addr &&
@@ -181,7 +182,7 @@ DWORD WINAPI network_handle_udp_thread(LPVOID arg) {
                         break;
                     }
                 }
-                LeaveCriticalSection(&lobby_mutex);
+                LeaveCriticalSection(mutex);
             }
         }
     }

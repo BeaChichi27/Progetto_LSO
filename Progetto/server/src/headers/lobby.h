@@ -25,5 +25,6 @@ void lobby_handle_join_game(Client *client, const char *message);
 void lobby_handle_list_games(Client *client);
 void lobby_handle_move(Client *client, const char *message);
 void lobby_handle_rematch(Client *client);
+CRITICAL_SECTION* lobby_get_mutex();
 
 #endif

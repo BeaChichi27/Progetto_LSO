@@ -177,3 +177,7 @@ void lobby_handle_client_message(Client *client, const char *message) {
         network_send_to_client(client, "ERROR:Comando sconosciuto");
     }
 }
+
+CRITICAL_SECTION* lobby_get_mutex() {
+    return &lobby_mutex;
+}
