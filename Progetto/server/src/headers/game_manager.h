@@ -2,6 +2,7 @@
 #define GAME_MANAGER_H
 
 #include "network.h"
+#include <time.h>
 
 #define MAX_GAMES 50
 
