@@ -3,15 +3,17 @@
 
 #include "network.h"
 #include "game_manager.h"
+#include <winsock2.h>
+#include <windows.h>
 
 #define MAX_CLIENTS 100
 
 int lobby_init();
 void lobby_cleanup();
 
-Client* lobby_add_client(int client_fd, const char *name);
+Client* lobby_add_client(SOCKET client_fd, const char *name);
 void lobby_remove_client(Client *client);
-Client* lobby_find_client_by_fd(int fd);
+Client* lobby_find_client_by_fd(SOCKET fd);
 Client* lobby_find_client_by_name(const char *name);
 
 void lobby_handle_client_message(Client *client, const char *message);

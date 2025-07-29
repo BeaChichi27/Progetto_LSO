@@ -4,15 +4,13 @@
 #include <stdlib.h>
 #include <string.h>
 
-#pragma comment(lib, "ws2_32.lib")
-
 static ServerNetwork *global_server = NULL;
 
 int network_init(ServerNetwork *server) {
     WSADATA wsaData;
-    int result = WSAStartup(MAKEWORD(2, 2), &wsaData);
+    long result = WSAStartup(MAKEWORD(2, 2), &wsaData);
     if (result != 0) {
-        printf("WSAStartup fallito: %d\n", result);
+        printf("WSAStartup fallito: %lu\n", result);
         return 0;
     }
 
@@ -60,7 +58,7 @@ int network_start_listening(ServerNetwork *server) {
     printf("Server in ascolto sulla porta %d\n", SERVER_PORT);
     HANDLE udp_thread = CreateThread(NULL, 0, network_handle_udp_thread, server, 0, NULL);
     if (udp_thread == NULL) {
-        printf("Errore creazione thread UDP: %d\n", GetLastError());
+        printf("Errore creazione thread UDP: %lu\n", GetLastError());
         return 0;
     }
     CloseHandle(udp_thread);

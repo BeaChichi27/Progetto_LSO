@@ -184,7 +184,7 @@ int game_make_move(int game_id, Client *client, int row, int col) {
     if (!game || !client) return 0;
     EnterCriticalSection(&game->mutex);
     PlayerSymbol expected_player = (game->current_player == PLAYER_X) ? PLAYER_X : PLAYER_O;
-    if (client->symbol != expected_player) {
+    if ((char)client->symbol != (char)expected_player) {
         network_send_to_client(client, "ERROR:Non e' il tuo turno");
         LeaveCriticalSection(&game->mutex);
         return 0;

@@ -3,8 +3,6 @@
 #include <stdlib.h>
 #include <string.h>
 
-#pragma comment(lib, "ws2_32.lib")
-
 static char last_error[256] = {0};
 
 static void set_error(const char *msg) {
@@ -170,6 +168,33 @@ int network_receive(NetworkConnection *conn, char *buffer, size_t buf_size, int 
     }
     
     return bytes;
+}
+
+int network_send(NetworkConnection *conn, const char *message, int use_udp) {
+    if (!conn || !message) {
+        return 0;
+    }
+    
+    if (use_udp && conn->udp_sock != INVALID_SOCKET) {
+        struct sockaddr_in server_addr;
+        memset(&server_addr, 0, sizeof(server_addr));
+        server_addr.sin_family = AF_INET;
+        server_addr.sin_port = htons(SERVER_PORT);
+        inet_pton(AF_INET, SERVER_IP, &server_addr.sin_addr);
+        
+        if (sendto(conn->udp_sock, message, (int)strlen(message), 0,
+                  (struct sockaddr*)&server_addr, sizeof(server_addr)) == SOCKET_ERROR) {
+            return 0;
+        }
+    } else if (conn->tcp_sock != INVALID_SOCKET) {
+        if (send(conn->tcp_sock, message, (int)strlen(message), 0) == SOCKET_ERROR) {
+            return 0;
+        }
+    } else {
+        return 0;
+    }
+    
+    return 1;
 }
 
 void network_disconnect(NetworkConnection *conn) {

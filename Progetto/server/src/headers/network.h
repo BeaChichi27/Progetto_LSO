@@ -2,8 +2,8 @@
 #define SERVER_NETWORK_H
 
 #include <winsock2.h>
-#include <ws2tcpip.h>
 #include <windows.h>
+#include <ws2tcpip.h>
 
 #define SERVER_PORT 8080
 #define MAX_MSG_SIZE 1024

@@ -18,6 +18,9 @@ services:
       - tris-network
     depends_on:
       - server
+    environment:
+      - SERVER_IP=server
+      - SERVER_PORT=8080
 
 networks:
   tris-network:

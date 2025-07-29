@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <signal.h>
+#include <winsock2.h>
 #include <windows.h>
 #include "headers/network.h"
 #include "headers/lobby.h"
@@ -21,7 +22,7 @@ BOOL WINAPI ConsoleHandler(DWORD signal) {
 
 void setup_signal_handlers() {
     if (!SetConsoleCtrlHandler(ConsoleHandler, TRUE)) {
-        printf("Errore impostazione gestore segnali: %d\n", GetLastError());
+        printf("Errore impostazione gestore segnali: %lu\n", GetLastError());
     }
 }
 
@@ -63,7 +64,7 @@ int main() {
         new_client->thread = CreateThread(NULL, 0, network_handle_client_thread, 
                                          new_client, 0, NULL);
         if (new_client->thread == NULL) {
-            printf("Errore creazione thread client: %d\n", GetLastError());
+            printf("Errore impostazione gestore segnali: %lu\n", GetLastError());
             closesocket(new_client->client_fd);
             free(new_client);
             continue;
