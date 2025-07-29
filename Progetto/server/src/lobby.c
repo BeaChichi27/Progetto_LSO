@@ -119,6 +119,21 @@ void lobby_broadcast_message(const char *message, Client *exclude) {
 
 void lobby_handle_client_message(Client *client, const char *message) {
     if (!client || !message) return;
+    if (strncmp(message, "REGISTER:", 9) == 0) {
+        const char *name = message + 9;
+        
+        if (lobby_find_client_by_name(name)) {
+            network_send_to_client(client, "ERROR:Nome già in uso");
+            return;
+        }
+        
+        strncpy(client->name, name, MAX_NAME_LEN - 1);
+        client->name[MAX_NAME_LEN - 1] = '\0';
+        
+        network_send_to_client(client, "OK:Registrazione completata");
+        printf("Client registrato con nome: %s\n", name);
+        return;
+    }
     if (strncmp(message, "CREATE_GAME", 11) == 0) {
         int game_id = game_create_new(client);
         if (game_id > 0) {
