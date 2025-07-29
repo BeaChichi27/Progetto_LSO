@@ -181,3 +181,27 @@ void lobby_handle_client_message(Client *client, const char *message) {
 CRITICAL_SECTION* lobby_get_mutex() {
     return &lobby_mutex;
 }
+
+
+Client* lobby_get_client_by_index(int index) {
+    if (index < 0 || index >= MAX_CLIENTS) return NULL;
+    return clients[index]; 
+}
+
+int lobby_add_client_reference(Client *client) {
+    if (!client) return 0;
+    CRITICAL_SECTION* mutex = lobby_get_mutex();
+    EnterCriticalSection(mutex);
+    
+    
+    for (int i = 0; i < MAX_CLIENTS; i++) {
+        if (clients[i] == NULL) {
+            clients[i] = client;
+            LeaveCriticalSection(mutex);
+            return 1;
+        }
+    }
+    
+    LeaveCriticalSection(mutex);
+    return 0; 
+}
