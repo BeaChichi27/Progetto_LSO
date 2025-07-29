@@ -110,25 +110,26 @@ void game_leave(Client *client) {
     if (!client || client->game_id <= 0) return;
     Game *game = game_find_by_id(client->game_id);
     if (!game) return;
+    
     EnterCriticalSection(&game->mutex);
     Client *opponent = NULL;
     if (game->player1 == client) {
-        game->player1 = NULL;
         opponent = game->player2;
+        game->player1 = NULL;
     } else if (game->player2 == client) {
-        game->player2 = NULL;
         opponent = game->player1;
+        game->player2 = NULL;
     }
+    
     if (opponent) {
         network_send_to_client(opponent, "OPPONENT_LEFT");
         opponent->game_id = -1;
     }
-    if (!game->player1 && !game->player2) {
-        int old_id = game->game_id;
-        game->game_id = -1;
-        game->state = GAME_STATE_WAITING;
-        printf("Partita %d eliminata\n", old_id);
-    }
+    
+    game->game_id = -1;
+    game->state = GAME_STATE_WAITING;
+    printf("Partita %d cancellata\n", client->game_id);
+    
     client->game_id = -1;
     LeaveCriticalSection(&game->mutex);
 }

@@ -168,6 +168,11 @@ void lobby_handle_client_message(Client *client, const char *message) {
         network_send_to_client(client, "LEFT_GAME");
     } else if (strncmp(message, "REMATCH", 7) == 0) {
         game_reset(client->game_id);
+    }else if (strncmp(message, "CANCEL", 6) == 0) {
+        if (client->game_id > 0) {
+            game_leave(client);
+            network_send_to_client(client, "GAME_CANCELED");
+        }
     } else {
         network_send_to_client(client, "ERROR:Comando sconosciuto");
     }

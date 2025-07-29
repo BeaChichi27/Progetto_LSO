@@ -159,23 +159,31 @@ DWORD WINAPI network_handle_udp_thread(LPVOID arg) {
     char buffer[MAX_MSG_SIZE];
     struct sockaddr_in client_addr;
     int addr_len = sizeof(client_addr);
-    printf("Thread UDP avviato\n");
+    
     while (server->is_running) {
         int bytes = recvfrom(server->udp_socket, buffer, sizeof(buffer) - 1, 0,
                            (struct sockaddr*)&client_addr, &addr_len);
-        if (bytes <= 0) {
-            int error = WSAGetLastError();
-            if (error != WSAEINTR && server->is_running) {
-                printf("Errore ricezione UDP: %d\n", error);
-            }
-            continue;
-        }
+        if (bytes <= 0) continue;
+        
         buffer[bytes] = '\0';
         printf("UDP ricevuto: %s da %s:%d\n", 
                buffer, inet_ntoa(client_addr.sin_addr), ntohs(client_addr.sin_port));
+        
         if (strncmp(buffer, "MOVE:", 5) == 0) {
+            int row, col;
+            if (sscanf(buffer + 5, "%d,%d", &row, &col) == 2) {
+                EnterCriticalSection(&lobby_mutex);
+                for (int i = 0; i < MAX_CLIENTS; i++) {
+                    if (clients[i] && 
+                        clients[i]->udp_addr.sin_addr.s_addr == client_addr.sin_addr.s_addr &&
+                        clients[i]->udp_addr.sin_port == client_addr.sin_port) {
+                        game_make_move(clients[i]->game_id, clients[i], row, col);
+                        break;
+                    }
+                }
+                LeaveCriticalSection(&lobby_mutex);
+            }
         }
     }
-    printf("Thread UDP terminato\n");
     return 0;
 }

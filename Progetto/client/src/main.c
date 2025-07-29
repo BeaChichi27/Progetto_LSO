@@ -20,34 +20,32 @@ void handle_create_game(NetworkConnection* conn) {
     }
 
     ui_show_waiting_screen();
+    time_t start_time = time(NULL);
     
     while (1) {
-        char message[MAX_MSG_SIZE];
-        int bytes = network_receive(conn, message, sizeof(message), 0);
+        if (difftime(time(NULL), start_time) > 30) {
+            ui_show_message("Timeout: nessun avversario trovato");
+            network_send(conn, "CANCEL", 0);
+            return;
+        }
         
-        if (bytes > 0) {
-            if (strstr(message, "JOIN_REQUEST:")) {
-                char opponent[50];
-                sscanf(message, "JOIN_REQUEST:%49s", opponent);
-                
-                char prompt[100];
-                snprintf(prompt, sizeof(prompt), 
-                        "%s vuole unirsi alla partita. Accetti? (s/n)", opponent);
-                ui_show_message(prompt);
-                
-                int choice = ui_ask_rematch();
-                if (choice) {
-                    network_send(conn, "ACCEPT", 0);
-                    return;
-                } else {
-                    network_send(conn, "REFUSE", 0);
-                    return;
-                }
+        char message[MAX_MSG_SIZE];
+        if (network_receive(conn, message, sizeof(message), 0) > 0) {
+            if (strstr(message, "OPPONENT_JOINED")) {
+                ui_show_message("Avversario trovato! La partita inizia...");
+                return;
             }
         }
         
         if (_kbhit() && _getch() == 27) {
             network_send(conn, "CANCEL", 0);
+            char response[MAX_MSG_SIZE];
+            if (network_receive(conn, response, sizeof(response), 0) > 0) {
+                if (strstr(response, "GAME_CANCELED")) {
+                    ui_show_message("Partita cancellata");
+                    return;
+                }
+            }
             return;
         }
         
