@@ -33,7 +33,7 @@ int ui_show_main_menu() {
 
 void ui_show_waiting_screen() {
     ui_clear_screen();
-    printf("\nIn attesa di un avversario...\n");
+    printf("\nIn attesa di un avversario... (Timeout: 5 minuti)\n");
     printf("Premi ESC per annullare\n");
 }
 

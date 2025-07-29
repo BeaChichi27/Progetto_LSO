@@ -34,6 +34,7 @@ typedef struct {
     GameState state;
     PlayerSymbol winner;
     int is_draw;
+    time_t creation_time;
     mutex_t mutex;
 } Game;
 

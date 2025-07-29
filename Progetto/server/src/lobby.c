@@ -140,6 +140,7 @@ void lobby_handle_client_message(Client *client, const char *message) {
             char response[64];
             sprintf(response, "GAME_CREATED:%d", game_id);
             network_send_to_client(client, response);
+            network_send_to_client(client, "WAITING_OPPONENT");  // Nuovo messaggio
         } else {
             network_send_to_client(client, "ERROR:Impossibile creare partita");
         }

@@ -156,6 +156,9 @@ int network_receive(NetworkConnection *conn, char *buffer, size_t buf_size, int 
     
     if (bytes > 0) {
         buffer[bytes] = '\0';
+        if (strstr(buffer, "WAITING_OPPONENT")) {
+            ui_show_waiting_screen();
+        }
     } else if (bytes == 0) {
         set_error("Connessione chiusa dal server");
     } else {
