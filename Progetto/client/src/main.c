@@ -1,10 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-<<<<<<< HEAD
 #include <time.h>        
-=======
->>>>>>> ec896caf03b8621b7f4c6d06a56af8841981fd6e
 #include <winsock2.h>
 #include <windows.h>
 #include <conio.h>
@@ -17,29 +14,43 @@ void get_board_position(int move, int* row, int* col) {
     *col = (move - 1) % 3;
 }
 
-void handle_create_game(NetworkConnection* conn) {
+int handle_create_game(NetworkConnection* conn) {
     if (!network_create_game(conn)) {
         ui_show_error(network_get_error());
-        return;
+        return 0;
     }
 
     ui_show_waiting_screen();
     time_t start_time = time(NULL);
     
     while (1) {
+        
         if (difftime(time(NULL), start_time) > 30) {
             ui_show_message("Timeout: nessun avversario trovato");
             network_send(conn, "CANCEL", 0);
-            return;
+            return 0;
         }
         
         char message[MAX_MSG_SIZE];
-        if (network_receive(conn, message, sizeof(message), 0) > 0) {
+        int bytes = network_receive(conn, message, sizeof(message), 0);
+        
+        
+        if (bytes < 0) {
+            ui_show_error("Server disconnesso durante l'attesa");
+            return -1; 
+        }
+        
+        if (bytes > 0) {
             if (strstr(message, "OPPONENT_JOINED")) {
                 ui_show_message("Avversario trovato! La partita inizia...");
-                return;
+                return 1; 
+            }
+            if (strstr(message, "ERROR:")) {
+                ui_show_error(message);
+                return 0;
             }
         }
+        
         
         if (_kbhit() && _getch() == 27) {
             network_send(conn, "CANCEL", 0);
@@ -47,24 +58,30 @@ void handle_create_game(NetworkConnection* conn) {
             if (network_receive(conn, response, sizeof(response), 0) > 0) {
                 if (strstr(response, "GAME_CANCELED")) {
                     ui_show_message("Partita cancellata");
-                    return;
+                    return 0;
                 }
             }
-            return;
+            return 0;
         }
         
         Sleep(100);
     }
 }
 
-void handle_join_game(NetworkConnection* conn) {
+int handle_join_game(NetworkConnection* conn) {
     ui_show_message("Richiesta lista partite...");
     network_send(conn, "LIST_GAMES", 0);
     
     char message[MAX_MSG_SIZE];
-    if (network_receive(conn, message, sizeof(message), 0) <= 0) {
+    int bytes = network_receive(conn, message, sizeof(message), 0);
+    
+    if (bytes <= 0) {
+        if (bytes < 0) {
+            ui_show_error("Server disconnesso");
+            return -1; 
+        }
         ui_show_error(network_get_error());
-        return;
+        return 0;
     }
     
     ui_show_message(message);
@@ -74,30 +91,38 @@ void handle_join_game(NetworkConnection* conn) {
     fgets(input, sizeof(input), stdin);
     int game_id = atoi(input);
     
-    if (game_id == 0) return;
+    if (game_id == 0) return 0;
     
     char join_msg[20];
     snprintf(join_msg, sizeof(join_msg), "JOIN:%d", game_id);
     network_send(conn, join_msg, 0);
     
-    if (network_receive(conn, message, sizeof(message), 0) <= 0) {
+    bytes = network_receive(conn, message, sizeof(message), 0);
+    if (bytes <= 0) {
+        if (bytes < 0) {
+            ui_show_error("Server disconnesso");
+            return -1;
+        }
         ui_show_error(network_get_error());
-        return;
+        return 0;
     }
     
     if (strstr(message, "JOIN_ACCEPTED")) {
         ui_show_message("Partita iniziata! Aspettando primo giocatore...");
+        return 1;
     } else {
         ui_show_error("Impossibile unirsi alla partita");
+        return 0;
     }
 }
 
-void game_loop(NetworkConnection* conn, Game* game, int is_host) {
+int game_loop(NetworkConnection* conn, Game* game, int is_host) {
     while (game->state != GAME_STATE_OVER) {
         ui_show_board(game->board);
         
         if ((is_host && game->current_player == PLAYER_X) || 
             (!is_host && game->current_player == PLAYER_O)) {
+            
             int move = ui_get_player_move();
             if (move == 0) break;
             
@@ -107,7 +132,11 @@ void game_loop(NetworkConnection* conn, Game* game, int is_host) {
             if (game_make_move(game, row, col)) {
                 char move_msg[20];
                 snprintf(move_msg, sizeof(move_msg), "MOVE:%d,%d", row, col);
-                network_send(conn, move_msg, 1);
+                
+                if (!network_send(conn, move_msg, 1)) {
+                    ui_show_error("Errore invio mossa - server disconnesso");
+                    return -1; 
+                }
             } else {
                 ui_show_error("Mossa non valida");
             }
@@ -117,10 +146,34 @@ void game_loop(NetworkConnection* conn, Game* game, int is_host) {
             char message[MAX_MSG_SIZE];
             int bytes = network_receive(conn, message, sizeof(message), 1);
             
+            
+            if (bytes < 0) {
+                ui_show_error("Server disconnesso durante la partita");
+                return -1;
+            }
+            
             if (bytes > 0 && strstr(message, "MOVE:")) {
                 int row, col;
                 sscanf(message, "MOVE:%d,%d", &row, &col);
                 game_make_move(game, row, col);
+            }
+            
+            
+            if (bytes > 0) {
+                if (strstr(message, "OPPONENT_LEFT")) {
+                    ui_show_message("L'avversario ha abbandonato la partita");
+                    return 0;
+                }
+                if (strstr(message, "GAME_OVER")) {
+                    game->state = GAME_STATE_OVER;
+                    if (strstr(message, "WINNER:X")) {
+                        game->winner = PLAYER_X;
+                    } else if (strstr(message, "WINNER:O")) {
+                        game->winner = PLAYER_O;
+                    } else if (strstr(message, "DRAW")) {
+                        game->is_draw = 1;
+                    }
+                }
             }
         }
     }
@@ -134,6 +187,8 @@ void game_loop(NetworkConnection* conn, Game* game, int is_host) {
     } else if (game->is_draw) {
         ui_show_message("Pareggio!");
     }
+    
+    return 1; 
 }
 
 int main() {
@@ -152,10 +207,30 @@ int main() {
     NetworkConnection conn;
     network_init(&conn);
     
-    if (!network_connect_to_server(&conn)) {
-        ui_show_error(network_get_error());
-        WSACleanup();
-        return 1;
+    
+    int reconnect_attempts = 0;
+    const int max_reconnect_attempts = 3;
+    
+    while (reconnect_attempts < max_reconnect_attempts) {
+        if (!network_connect_to_server(&conn)) {
+            reconnect_attempts++;
+            char error_msg[100];
+            snprintf(error_msg, sizeof(error_msg), 
+                    "Tentativo di connessione %d/%d fallito: %s", 
+                    reconnect_attempts, max_reconnect_attempts, network_get_error());
+            ui_show_error(error_msg);
+            
+            if (reconnect_attempts < max_reconnect_attempts) {
+                ui_show_message("Riprovo tra 3 secondi...");
+                Sleep(3000);
+                continue;
+            } else {
+                ui_show_error("Impossibile connettersi al server");
+                WSACleanup();
+                return 1;
+            }
+        }
+        break; 
     }
     
     if (!network_register_name(&conn, player_name)) {
@@ -165,40 +240,80 @@ int main() {
         return 1;
     }
 
+    
     while (1) {
         int choice = ui_show_main_menu();
+        int result = 0;
         
         switch (choice) {
             case 1:
-                handle_create_game(&conn);
-                {
+            {
+                result = handle_create_game(&conn);
+                if (result == -1) {
+                    
+                    ui_show_error("Connessione persa. Chiusura applicazione.");
+                    network_disconnect(&conn);
+                    WSACleanup();
+                    return 1;
+                }
+                if (result == 1) {
+                    
                     Game game;
                     game_init(&game);
-                    game_loop(&conn, &game, 1);
+                    game.state = GAME_STATE_PLAYING;
                     
-                    if (ui_ask_rematch()) {
+                    int game_result = game_loop(&conn, &game, 1);
+                    if (game_result == -1) {
+                        ui_show_error("Connessione persa. Chiusura applicazione.");
+                        network_disconnect(&conn);
+                        WSACleanup();
+                        return 1;
+                    }
+                    
+                    if (game_result == 1 && ui_ask_rematch()) {
                         network_send(&conn, "REMATCH", 0);
                     }
                 }
                 break;
-                
+            }
+            
             case 2:
-                handle_join_game(&conn);
-                {
+            {
+                result = handle_join_game(&conn);
+                if (result == -1) {
+                    ui_show_error("Connessione persa. Chiusura applicazione.");
+                    network_disconnect(&conn);
+                    WSACleanup();
+                    return 1;
+                }
+                if (result == 1) {
                     Game game;
                     game_init(&game);
-                    game_loop(&conn, &game, 0);
+                    game.state = GAME_STATE_PLAYING;
                     
-                    if (ui_ask_rematch()) {
+                    int game_result = game_loop(&conn, &game, 0);
+                    if (game_result == -1) {
+                        ui_show_error("Connessione persa. Chiusura applicazione.");
+                        network_disconnect(&conn);
+                        WSACleanup();
+                        return 1;
+                    }
+                    
+                    if (game_result == 1 && ui_ask_rematch()) {
                         network_send(&conn, "REMATCH", 0);
                     }
                 }
                 break;
-                
+            }
+            
             case 3:
                 network_disconnect(&conn);
                 WSACleanup();
                 return 0;
+                
+            default:
+                ui_show_error("Scelta non valida");
+                break;
         }
     }
 

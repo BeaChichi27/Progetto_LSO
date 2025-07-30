@@ -152,7 +152,9 @@ DWORD WINAPI network_handle_udp_thread(LPVOID arg) {
     printf("Thread UDP avviato\n");
     
     while (server->is_running) {
-        
+        Sleep(5000);
+        lobby_broadcast_message("HEARTBEAT", NULL);
+
         int bytes = recvfrom(server->udp_socket, buffer, sizeof(buffer) - 1, 0,
                            (struct sockaddr*)&client_addr, &addr_len);
         

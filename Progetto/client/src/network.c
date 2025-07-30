@@ -1,8 +1,5 @@
 #include "headers/network.h"
-<<<<<<< HEAD
 #include "headers/ui.h"
-=======
->>>>>>> ec896caf03b8621b7f4c6d06a56af8841981fd6e
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -40,7 +37,8 @@ int network_connect_to_server(NetworkConnection *conn) {
         return 0;
     }
 
-    DWORD timeout = TIMEOUT_SEC * 1000;
+    
+    DWORD timeout = 5000;
     setsockopt(conn->tcp_sock, SOL_SOCKET, SO_RCVTIMEO, (char*)&timeout, sizeof(timeout));
     setsockopt(conn->tcp_sock, SOL_SOCKET, SO_SNDTIMEO, (char*)&timeout, sizeof(timeout));
 
@@ -89,12 +87,11 @@ int network_register_name(NetworkConnection *conn, const char *name) {
     }
 
     char response[MAX_MSG_SIZE];
-    int bytes = recv(conn->tcp_sock, response, sizeof(response) - 1, 0);
+    int bytes = network_receive(conn, response, sizeof(response), 0);
     if (bytes <= 0) {
         set_error("Nessuna risposta dal server");
         return 0;
     }
-    response[bytes] = '\0';
 
     if (strstr(response, "OK") != NULL) {
         strncpy_s(conn->player_name, sizeof(conn->player_name), name, _TRUNCATE);
@@ -148,33 +145,71 @@ int network_send_move(NetworkConnection *conn, int move) {
     return 1;
 }
 
+
 int network_receive(NetworkConnection *conn, char *buffer, size_t buf_size, int use_udp) {
-    if (!conn || (use_udp==0 && conn->tcp_sock == INVALID_SOCKET) || 
-        (use_udp==1 && conn->udp_sock == INVALID_SOCKET)) {
+    if (!conn || (use_udp == 0 && conn->tcp_sock == INVALID_SOCKET) || 
+        (use_udp == 1 && conn->udp_sock == INVALID_SOCKET)) {
         set_error("Connessione non valida");
         return -1;
     }
 
     SOCKET sock = use_udp ? conn->udp_sock : conn->tcp_sock;
+    
+    
+    fd_set readfds;
+    FD_ZERO(&readfds);
+    FD_SET(sock, &readfds);
+
+    
+    struct timeval timeout;
+    timeout.tv_sec = 10;
+    timeout.tv_usec = 0;
+    
+    int select_result = select(0, &readfds, NULL, NULL, &timeout);
+    
+    if (select_result == 0) {
+        set_error("Timeout: server non raggiungibile");
+        return -1;  
+    }
+    
+    if (select_result == SOCKET_ERROR) {
+        set_error("Errore nel controllo socket");
+        return -1;
+    }
+
+    
     int bytes = recv(sock, buffer, (int)buf_size - 1, 0);
     
     if (bytes > 0) {
         buffer[bytes] = '\0';
+        
+        
+        if (strcmp(buffer, "HEARTBEAT") == 0) {
+            
+            network_send(conn, "HEARTBEAT_ACK", use_udp);
+            return 0;  
+        }
+        
+        
         if (strstr(buffer, "WAITING_OPPONENT")) {
             ui_show_waiting_screen();
         }
-    } else if (bytes == 0) {
+        
+        return bytes;
+    } 
+    else if (bytes == 0) {
         set_error("Connessione chiusa dal server");
-    } else {
+        return -1;
+    } 
+    else {
         int error = WSAGetLastError();
         if (error == WSAETIMEDOUT) {
             set_error("Timeout nella ricezione");
         } else {
             set_error("Errore nella ricezione");
         }
+        return -1;
     }
-    
-    return bytes;
 }
 
 int network_send(NetworkConnection *conn, const char *message, int use_udp) {

@@ -31,15 +31,6 @@ int ui_show_main_menu() {
     return choice;
 }
 
-<<<<<<< HEAD
-=======
-void ui_show_waiting_screen() {
-    ui_clear_screen();
-    printf("\nIn attesa di un avversario... (Timeout: 5 minuti)\n");
-    printf("Premi ESC per annullare\n");
-}
-
->>>>>>> ec896caf03b8621b7f4c6d06a56af8841981fd6e
 void ui_show_board(const char board[3][3]) {
     ui_clear_screen();
     printf("\n");
@@ -110,7 +101,6 @@ int ui_get_player_name(char *name, int max_length) {
     }
     
     return 1;
-<<<<<<< HEAD
 }
 
 void ui_show_waiting_screen(void) {
@@ -128,6 +118,4 @@ void ui_show_waiting_screen(void) {
     printf("====================================\n");
     
     fflush(stdout);
-=======
->>>>>>> ec896caf03b8621b7f4c6d06a56af8841981fd6e
 }
