@@ -1,5 +1,8 @@
 #include "headers/network.h"
+<<<<<<< HEAD
 #include "headers/ui.h"
+=======
+>>>>>>> ec896caf03b8621b7f4c6d06a56af8841981fd6e
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>

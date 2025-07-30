@@ -19,6 +19,9 @@ void ui_clear_screen();
 
 int ui_get_player_name(char *name, int max_length);
 
+<<<<<<< HEAD
 void ui_show_waiting_screen(void);
 
+=======
+>>>>>>> ec896caf03b8621b7f4c6d06a56af8841981fd6e
 #endif
