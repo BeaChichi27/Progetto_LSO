@@ -4,6 +4,7 @@
 #include <winsock2.h>
 #include <ws2tcpip.h>
 #include <windows.h>
+#include <conio.h>
 
 #define SERVER_IP "127.0.0.1"
 #define SERVER_PORT 8080
@@ -32,5 +33,6 @@ int network_send(NetworkConnection *conn, const char *message, int use_udp);
 int network_receive(NetworkConnection *conn, char *buffer, size_t buf_size, int use_udp);
 
 const char *network_get_error();
+void flush_input_buffer();
 
 #endif

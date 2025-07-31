@@ -28,5 +28,6 @@ void lobby_handle_rematch(Client *client);
 CRITICAL_SECTION* lobby_get_mutex();
 Client* lobby_get_client_by_index(int index);
 int lobby_add_client_reference(Client *client);
+void lobby_check_timeouts();
 
 #endif

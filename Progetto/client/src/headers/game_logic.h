@@ -36,4 +36,6 @@ int game_is_board_full(const Game *game);
 
 int game_process_network_message(Game *game, const char *message);
 
+void get_board_position(int move, int* row, int* col);
+
 #endif 

@@ -88,6 +88,7 @@ int network_register_name(NetworkConnection *conn, const char *name) {
 
     char response[MAX_MSG_SIZE];
     int bytes = network_receive(conn, response, sizeof(response), 0);
+    flush_input_buffer();
     if (bytes <= 0) {
         set_error("Nessuna risposta dal server");
         return 0;
@@ -147,6 +148,7 @@ int network_send_move(NetworkConnection *conn, int move) {
 
 
 int network_receive(NetworkConnection *conn, char *buffer, size_t buf_size, int use_udp) {
+    
     if (!conn || (use_udp == 0 && conn->tcp_sock == INVALID_SOCKET) || 
         (use_udp == 1 && conn->udp_sock == INVALID_SOCKET)) {
         set_error("Connessione non valida");
@@ -160,16 +162,14 @@ int network_receive(NetworkConnection *conn, char *buffer, size_t buf_size, int 
     FD_ZERO(&readfds);
     FD_SET(sock, &readfds);
 
-    
-    struct timeval timeout;
-    timeout.tv_sec = 10;
-    timeout.tv_usec = 0;
+    struct timeval timeout = {2, 0}; 
     
     int select_result = select(0, &readfds, NULL, NULL, &timeout);
     
+    
     if (select_result == 0) {
         set_error("Timeout: server non raggiungibile");
-        return -1;  
+        return 0;  
     }
     
     if (select_result == SOCKET_ERROR) {
@@ -185,9 +185,8 @@ int network_receive(NetworkConnection *conn, char *buffer, size_t buf_size, int 
         
         
         if (strcmp(buffer, "HEARTBEAT") == 0) {
-            
             network_send(conn, "HEARTBEAT_ACK", use_udp);
-            return 0;  
+            return 0;
         }
         
         
@@ -202,6 +201,7 @@ int network_receive(NetworkConnection *conn, char *buffer, size_t buf_size, int 
         return -1;
     } 
     else {
+        
         int error = WSAGetLastError();
         if (error == WSAETIMEDOUT) {
             set_error("Timeout nella ricezione");
@@ -252,4 +252,10 @@ void network_disconnect(NetworkConnection *conn) {
 
 const char *network_get_error() {
     return last_error;
+}
+
+void flush_input_buffer() {
+    while (_kbhit()) {
+        _getch();
+    }
 }

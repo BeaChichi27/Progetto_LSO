@@ -4,6 +4,7 @@
 #include <winsock2.h>
 #include <windows.h>
 #include <ws2tcpip.h>
+#include <conio.h>
 
 #define SERVER_PORT 8080
 #define MAX_MSG_SIZE 1024
@@ -17,6 +18,7 @@ typedef struct {
     struct sockaddr_in udp_addr;
     int is_active;
     HANDLE thread;
+    time_t last_heartbeat_ack;
 } Client;
 
 typedef struct {
@@ -36,5 +38,7 @@ int network_receive_from_client(Client *client, char *buffer, size_t buf_size);
 
 DWORD WINAPI network_handle_client_thread(LPVOID arg);
 DWORD WINAPI network_handle_udp_thread(LPVOID arg);
+
+void flush_input_buffer();
 
 #endif

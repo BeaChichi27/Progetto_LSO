@@ -24,7 +24,6 @@ int handle_create_game(NetworkConnection* conn) {
     time_t start_time = time(NULL);
     
     while (1) {
-        
         if (difftime(time(NULL), start_time) > 30) {
             ui_show_message("Timeout: nessun avversario trovato");
             network_send(conn, "CANCEL", 0);
@@ -34,33 +33,28 @@ int handle_create_game(NetworkConnection* conn) {
         char message[MAX_MSG_SIZE];
         int bytes = network_receive(conn, message, sizeof(message), 0);
         
-        
         if (bytes < 0) {
             ui_show_error("Server disconnesso durante l'attesa");
-            return -1; 
+            return -1;
         }
         
         if (bytes > 0) {
             if (strstr(message, "OPPONENT_JOINED")) {
                 ui_show_message("Avversario trovato! La partita inizia...");
-                return 1; 
+                return 1;
             }
-            if (strstr(message, "ERROR:")) {
+            else if (strstr(message, "HEARTBEAT")) {
+                network_send(conn, "HEARTBEAT_ACK", 0);  
+                continue;
+            }
+            else if (strstr(message, "ERROR:")) {
                 ui_show_error(message);
                 return 0;
             }
         }
         
-        
-        if (_kbhit() && _getch() == 27) {
+        if (_kbhit() && _getch() == 27) {  
             network_send(conn, "CANCEL", 0);
-            char response[MAX_MSG_SIZE];
-            if (network_receive(conn, response, sizeof(response), 0) > 0) {
-                if (strstr(response, "GAME_CANCELED")) {
-                    ui_show_message("Partita cancellata");
-                    return 0;
-                }
-            }
             return 0;
         }
         
@@ -70,18 +64,26 @@ int handle_create_game(NetworkConnection* conn) {
 
 int handle_join_game(NetworkConnection* conn) {
     ui_show_message("Richiesta lista partite...");
-    network_send(conn, "LIST_GAMES", 0);
-    
-    char message[MAX_MSG_SIZE];
-    int bytes = network_receive(conn, message, sizeof(message), 0);
+    if (!network_send(conn, "LIST_GAMES", 0)) {
+        ui_show_error("Errore invio richiesta");
+        return -1;
+    }
+
+    char message[MAX_MSG_SIZE] = {0};
+    int bytes = network_receive(conn, message, sizeof(message)-1, 0);
     
     if (bytes <= 0) {
-        if (bytes < 0) {
-            ui_show_error("Server disconnesso");
-            return -1; 
+        ui_show_error(bytes < 0 ? "Server disconnesso" : network_get_error());
+        return -1;
+    }
+    
+    
+    if (strstr(message, "HEARTBEAT")) {
+        bytes = network_receive(conn, message, sizeof(message)-1, 0);
+        if (bytes <= 0) {
+            ui_show_error("Nessuna risposta valida dal server");
+            return -1;
         }
-        ui_show_error(network_get_error());
-        return 0;
     }
     
     ui_show_message(message);
@@ -95,23 +97,21 @@ int handle_join_game(NetworkConnection* conn) {
     
     char join_msg[20];
     snprintf(join_msg, sizeof(join_msg), "JOIN:%d", game_id);
-    network_send(conn, join_msg, 0);
-    
-    bytes = network_receive(conn, message, sizeof(message), 0);
+    if (!network_send(conn, join_msg, 0)) {
+        ui_show_error("Errore invio richiesta join");
+        return -1;
+    }
+
+    bytes = network_receive(conn, message, sizeof(message)-1, 0);
     if (bytes <= 0) {
-        if (bytes < 0) {
-            ui_show_error("Server disconnesso");
-            return -1;
-        }
-        ui_show_error(network_get_error());
-        return 0;
+        ui_show_error(bytes < 0 ? "Server disconnesso" : network_get_error());
+        return -1;
     }
     
     if (strstr(message, "JOIN_ACCEPTED")) {
-        ui_show_message("Partita iniziata! Aspettando primo giocatore...");
         return 1;
     } else {
-        ui_show_error("Impossibile unirsi alla partita");
+        ui_show_error(strstr(message, "ERROR:") ? message : "Impossibile unirsi alla partita");
         return 0;
     }
 }
@@ -145,6 +145,7 @@ int game_loop(NetworkConnection* conn, Game* game, int is_host) {
             
             char message[MAX_MSG_SIZE];
             int bytes = network_receive(conn, message, sizeof(message), 1);
+            flush_input_buffer();
             
             
             if (bytes < 0) {

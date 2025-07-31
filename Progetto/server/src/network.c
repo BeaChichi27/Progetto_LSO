@@ -250,7 +250,7 @@ int network_init(ServerNetwork *server) {
     setsockopt(server->udp_socket, SOL_SOCKET, SO_REUSEADDR, (char*)&opt, sizeof(opt));
     
     
-    DWORD timeout = 1000; 
+    DWORD timeout = 3000; 
     setsockopt(server->udp_socket, SOL_SOCKET, SO_RCVTIMEO, (char*)&timeout, sizeof(timeout));
     
     global_server = server;
@@ -393,6 +393,7 @@ DWORD WINAPI network_handle_client_thread(LPVOID arg) {
     
     while (client->is_active && global_server->is_running) {
         int bytes = network_receive_from_client(client, buffer, sizeof(buffer));
+        flush_input_buffer();
         if (bytes <= 0) {
             break;
         }
@@ -403,4 +404,10 @@ DWORD WINAPI network_handle_client_thread(LPVOID arg) {
     closesocket(client->client_fd);
     free(client);
     return 0;
+}
+
+void flush_input_buffer() {
+    while (_kbhit()) {
+        _getch();
+    }
 }

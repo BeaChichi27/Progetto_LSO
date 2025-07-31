@@ -177,6 +177,27 @@ void lobby_handle_client_message(Client *client, const char *message) {
     } else {
         network_send_to_client(client, "ERROR:Comando sconosciuto");
     }
+    if (strcmp(message, "HEARTBEAT_ACK") == 0) {
+        client->last_heartbeat_ack = time(NULL);
+        return;
+    }
+    
+}
+
+void lobby_check_timeouts() {
+    EnterCriticalSection(&lobby_mutex);
+    time_t now = time(NULL);
+    
+    for (int i = 0; i < MAX_CLIENTS; i++) {
+        if (clients[i] && clients[i]->is_active) {
+            if (difftime(now, clients[i]->last_heartbeat_ack) > 15) {
+                printf("Client %s disconnesso per timeout\n", clients[i]->name);
+                closesocket(clients[i]->client_fd);
+                clients[i]->is_active = 0;
+            }
+        }
+    }
+    LeaveCriticalSection(&lobby_mutex);
 }
 
 CRITICAL_SECTION* lobby_get_mutex() {
