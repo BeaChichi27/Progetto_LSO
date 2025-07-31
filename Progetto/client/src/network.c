@@ -73,6 +73,7 @@ int network_connect_to_server(NetworkConnection *conn) {
     return 1;
 }
 
+
 int network_register_name(NetworkConnection *conn, const char *name) {
     if (!conn || conn->tcp_sock == INVALID_SOCKET || !name) {
         set_error("Connessione non valida");
@@ -89,17 +90,19 @@ int network_register_name(NetworkConnection *conn, const char *name) {
 
     char response[MAX_MSG_SIZE];
     int bytes = network_receive(conn, response, sizeof(response), 0);
-    flush_input_buffer();
     if (bytes <= 0) {
         set_error("Nessuna risposta dal server");
         return 0;
     }
 
-    if (strstr(response, "OK") != NULL) {
+    if (strstr(response, "REGISTRATION_OK") != NULL) {
         strncpy_s(conn->player_name, sizeof(conn->player_name), name, _TRUNCATE);
         return 1;
+    } else if (strstr(response, "ERROR:")) {
+        set_error(response + 6); 
+        return 0;
     } else {
-        set_error(response);
+        set_error("Risposta non riconosciuta dal server");
         return 0;
     }
 }

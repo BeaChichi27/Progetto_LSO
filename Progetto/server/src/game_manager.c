@@ -279,27 +279,6 @@ void game_check_timeouts() {
     LeaveCriticalSection(&games_mutex);
 }
 
-
-void game_check_timeouts() {
-    EnterCriticalSection(&games_mutex);
-    time_t now = time(NULL);
-    
-    for (int i = 0; i < MAX_GAMES; i++) {
-        if (games[i].game_id != -1 && 
-            games[i].state == GAME_STATE_WAITING &&
-            difftime(now, games[i].creation_time) > 300) { 
-            
-            printf("Partita %d cancellata per timeout\n", games[i].game_id);
-            if (games[i].player1) {
-                network_send_to_client(games[i].player1, "ERROR:Timeout - Nessun avversario");
-                games[i].player1->game_id = -1;
-            }
-            games[i].game_id = -1;
-        }
-    }
-    LeaveCriticalSection(&games_mutex);
-}
-
 int game_request_rematch(int game_id, Client *client) {
     Game *game = game_find_by_id(game_id);
     if (!game || game->state != GAME_STATE_OVER) return 0;

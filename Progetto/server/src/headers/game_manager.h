@@ -67,4 +67,6 @@ int game_is_valid_move(Game *game, int row, int col);
 int game_is_board_full(Game *game);
 void game_check_timeouts();
 
+int game_request_rematch(int game_id, Client *client);
+
 #endif

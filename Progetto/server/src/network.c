@@ -7,9 +7,6 @@
 
 static ServerNetwork *global_server = NULL;
 
-
-
-
 static int network_register_udp_client(Client *client, struct sockaddr_in *udp_addr) {
     if (!client || !udp_addr) return 0;
     
@@ -346,15 +343,20 @@ int network_send_to_client(Client *client, const char *message) {
     if (!client || !client->is_active || !message) {
         return 0;
     }
+
+    EnterCriticalSection(&lobby_mutex); 
     
     int bytes_sent = send(client->client_fd, message, (int)strlen(message), 0);
     if (bytes_sent == SOCKET_ERROR) {
-        printf("Errore invio messaggio TCP: %d\n", WSAGetLastError());
+        int error = WSAGetLastError();
+        printf("Errore invio a %s: %d\n", client->name, error);
         client->is_active = 0;
+        LeaveCriticalSection(&lobby_mutex);
         return 0;
     }
-    
-    printf("TCP inviato a %s: %s\n", client->name, message);
+
+    printf("Inviato a %s: %s\n", client->name, message);
+    LeaveCriticalSection(&lobby_mutex);
     return 1;
 }
 
@@ -384,23 +386,34 @@ DWORD WINAPI network_handle_client_thread(LPVOID arg) {
     char buffer[MAX_MSG_SIZE];
 
     
-    while (client->is_active && global_server->is_running) { 
+    while (client->is_active && global_server->is_running) {
         int bytes = network_receive_from_client(client, buffer, sizeof(buffer));
         if (bytes <= 0) {
-            
             goto cleanup;
         }
 
         if (strncmp(buffer, "REGISTER:", 9) == 0) {
             const char *name = buffer + 9;
 
-            if (strlen(name) == 0 || is_name_duplicate(name)) {
-                network_send_to_client(client, "ERROR:Nome non valido o duplicato");
+            
+            EnterCriticalSection(&lobby_mutex);
+            if (strlen(name) == 0) {
+                network_send_to_client(client, "ERROR:Nome non valido");
+                LeaveCriticalSection(&lobby_mutex);
+                continue; 
+            }
+
+            if (is_name_duplicate(name)) {
+                network_send_to_client(client, "ERROR:Nome già in uso");
+                LeaveCriticalSection(&lobby_mutex);
                 continue; 
             }
 
             add_name(name);
             strncpy(client->name, name, MAX_NAME_LEN - 1);
+            client->name[MAX_NAME_LEN - 1] = '\0';
+            LeaveCriticalSection(&lobby_mutex);
+
             network_send_to_client(client, "REGISTRATION_OK");
             break; 
         }
@@ -414,26 +427,31 @@ DWORD WINAPI network_handle_client_thread(LPVOID arg) {
     
     if (!lobby_add_client_reference(client)) {
         printf("Errore aggiunta client alla lobby\n");
-        goto cleanup; 
+        goto cleanup;
     }
 
     
     while (client->is_active && global_server->is_running) {
         int bytes = network_receive_from_client(client, buffer, sizeof(buffer));
         if (bytes <= 0) {
-            break; 
+            break;
         }
         lobby_handle_client_message(client, buffer);
     }
 
 cleanup:
-    remove_name(client->name);
+    
+    EnterCriticalSection(&lobby_mutex);
+    if (strlen(client->name) > 0) {
+        remove_name(client->name);
+    }
+    LeaveCriticalSection(&lobby_mutex);
+
     lobby_remove_client(client);
     closesocket(client->client_fd);
     free(client);
     return 0;
 }
-
 
 void flush_input_buffer() {
     while (_kbhit()) {
