@@ -5,6 +5,8 @@
 #include <conio.h> 
 #include <windows.h> 
 
+#define MAX_INPUT_SIZE 100
+
 void ui_clear_screen() {
     system("cls");
 }
@@ -118,4 +120,122 @@ void ui_show_waiting_screen(void) {
     printf("====================================\n");
     
     fflush(stdout);
+}
+
+int get_valid_game_choice(char *input) {
+    while (1) {
+        printf("\nScegli una partita disponibile (0-9) o 'q' per tornare:\n");
+        if (fgets(input, MAX_INPUT_SIZE, stdin) == NULL) {
+            continue;
+        }
+
+        input[strcspn(input, "\r\n")] = 0; 
+
+        
+        if (strcmp(input, "q") == 0 || strcmp(input, "Q") == 0) {
+            return 1; 
+        }
+        
+        if (strlen(input) == 1 && input[0] >= '0' && input[0] <= '9') {
+            return 1; 
+        }
+
+        printf("Formato non valido! Usa: numero 0-9 o 'q'\n");
+        return 0;
+    }
+}
+
+// Aggiungi queste funzioni alla fine del tuo ui.c
+
+void ui_show_waiting_with_animation() {
+    for (int i = 0; i < 3; i++) {
+        ui_clear_screen();
+        printf("\n");
+        printf("====================================\n");
+        printf("        IN ATTESA DI RISPOSTA       \n");
+        printf("====================================\n");
+        printf("\n");
+        
+        // Animazione punti
+        printf("   [");
+        for (int j = 0; j <= i; j++) printf(".");
+        for (int j = i + 1; j < 3; j++) printf(" ");
+        printf("]  Connessione in corso...   \n");
+        
+        printf("\n");
+        printf("   Premere ESC per annullare     \n");
+        printf("\n");
+        printf("====================================\n");
+        
+        fflush(stdout);
+        Sleep(500);
+    }
+}
+
+int ui_show_styled_menu() {
+    ui_clear_screen();
+    printf("\n");
+    printf("╔════════════════════════════════╗\n");
+    printf("║        MENU PRINCIPALE         ║\n");
+    printf("╠════════════════════════════════╣\n");
+    printf("║  1. Crea nuova partita         ║\n");
+    printf("║  2. Unisciti a partita         ║\n");
+    printf("║  3. Esci                       ║\n");
+    printf("╚════════════════════════════════╝\n");
+    printf(" Scegli un'opzione: ");
+
+    int choice = 0;
+    while (1) {
+        char input = _getch();
+        if (input >= '1' && input <= '3') {
+            choice = input - '0';
+            printf("%d\n", choice);
+            break;
+        }
+    }
+    
+    return choice;
+}
+
+int ui_show_post_game_menu() {
+    printf("\n");
+    printf("╔════════════════════════════════╗\n");
+    printf("║       PARTITA TERMINATA        ║\n");
+    printf("╠════════════════════════════════╣\n");
+    printf("║  1. Gioca ancora               ║\n");
+    printf("║  2. Torna al menu principale   ║\n");
+    printf("╚════════════════════════════════╝\n");
+    printf(" Scegli un'opzione: ");
+
+    int choice = 0;
+    while (1) {
+        char input = _getch();
+        if (input >= '1' && input <= '2') {
+            choice = input - '0';
+            printf("%d\n", choice);
+            break;
+        }
+    }
+    
+    return choice;
+}
+
+int ui_ask_rematch_as_guest() {
+    printf("\nL'host vuole giocare di nuovo. Accetti? (s/n): ");
+    
+    while (1) {
+        char input = _getch();
+        if (input == 's' || input == 'S') {
+            printf("s\n");
+            return 1;
+        }
+        if (input == 'n' || input == 'N') {
+            printf("n\n");
+            return 0;
+        }
+    }
+}
+
+void ui_show_connection_status(int attempt, int max_attempts) {
+    printf("Tentativo di connessione %d/%d...\n", attempt, max_attempts);
 }

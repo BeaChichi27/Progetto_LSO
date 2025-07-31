@@ -21,4 +21,10 @@ int ui_get_player_name(char *name, int max_length);
 
 void ui_show_waiting_screen(void);
 
+void ui_show_waiting_with_animation();
+int ui_show_styled_menu();
+int ui_show_post_game_menu();
+int ui_ask_rematch_as_guest();
+void ui_show_connection_status(int attempt, int max_attempts);
+
 #endif

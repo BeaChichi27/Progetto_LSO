@@ -38,6 +38,7 @@ int network_receive_from_client(Client *client, char *buffer, size_t buf_size);
 
 DWORD WINAPI network_handle_client_thread(LPVOID arg);
 DWORD WINAPI network_handle_udp_thread(LPVOID arg);
+DWORD WINAPI network_heartbeat_thread(LPVOID arg);
 
 void flush_input_buffer();
 

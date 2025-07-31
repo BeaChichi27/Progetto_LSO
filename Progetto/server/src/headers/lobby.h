@@ -29,5 +29,8 @@ CRITICAL_SECTION* lobby_get_mutex();
 Client* lobby_get_client_by_index(int index);
 int lobby_add_client_reference(Client *client);
 void lobby_check_timeouts();
+int is_name_duplicate(const char *name);
+void add_name(const char *name);
+void remove_name(const char *name);
 
 #endif

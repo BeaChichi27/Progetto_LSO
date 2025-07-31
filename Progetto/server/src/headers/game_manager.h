@@ -18,6 +18,13 @@ typedef enum {
     PLAYER_O = 'O'
 } PlayerSymbol;
 
+typedef enum {
+    REMATCH_NONE,
+    REMATCH_REQUESTED,
+    REMATCH_ACCEPTED,
+    REMATCH_DECLINED
+} RematchState;
+
 #ifdef _WIN32
 #include <windows.h>
 typedef CRITICAL_SECTION mutex_t;
@@ -37,6 +44,8 @@ typedef struct {
     int is_draw;
     time_t creation_time;
     mutex_t mutex;
+    RematchState rematch_state;
+    Client* rematch_requester;
 } Game;
 
 int game_manager_init();
@@ -56,5 +65,6 @@ void game_init_board(Game *game);
 int game_check_winner(Game *game);
 int game_is_valid_move(Game *game, int row, int col);
 int game_is_board_full(Game *game);
+void game_check_timeouts();
 
 #endif

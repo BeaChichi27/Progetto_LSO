@@ -70,50 +70,121 @@ int handle_join_game(NetworkConnection* conn) {
     }
 
     char message[MAX_MSG_SIZE] = {0};
-    int bytes = network_receive(conn, message, sizeof(message)-1, 0);
+    int bytes;
+
     
-    if (bytes <= 0) {
-        ui_show_error(bytes < 0 ? "Server disconnesso" : network_get_error());
-        return -1;
-    }
-    
-    
-    if (strstr(message, "HEARTBEAT")) {
-        bytes = network_receive(conn, message, sizeof(message)-1, 0);
-        if (bytes <= 0) {
-            ui_show_error("Nessuna risposta valida dal server");
-            return -1;
+    while (1) {
+        fd_set readfds;
+
+        FD_ZERO(&readfds);
+
+        FD_SET(STDIN_FILENO, &readfds);  
+
+        FD_SET(conn->tcp_sock, &readfds); 
+
+        int maxfd = conn->tcp_sock > STDIN_FILENO ? conn->tcp_sock : STDIN_FILENO;
+
+        int ready = select(maxfd + 1, &readfds, NULL, NULL, NULL);
+
+        if (ready < 0) {
+            perror("Errore nella funzione select");
+            continue;
+        }
+
+        
+        if (FD_ISSET(conn->tcp_sock, &readfds)) {
+            memset(message, 0, MAX_MSG_SIZE);
+            bytes = network_receive(conn, message, sizeof(message)-1, 0);
+
+            if (bytes <= 0) {
+                ui_show_error("Connessione chiusa dal server");
+                return -1;
+            }
+
+            if (strstr(message, "GAME_LIST")) {
+                
+                bytes = network_receive(conn, message, sizeof(message)-1, 0);
+                if (bytes > 0) {
+                    ui_clear_screen();
+                    printf("%s", message);
+                    printf("Scegli una partita o premi q per tornare al menu:\n");
+                }
+            }
+        }
+
+        
+        if (FD_ISSET(STDIN_FILENO, &readfds)) {
+            printf("Inserisci ID partita (0 per annullare): ");
+            char input[10];
+            if (fgets(input, sizeof(input), stdin)) {
+                int game_id = atoi(input);
+                if (game_id == 0) return 0;
+
+                char join_msg[20];
+                snprintf(join_msg, sizeof(join_msg), "JOIN:%d", game_id);
+                network_send(conn, join_msg, 0);
+                break; 
+            }
         }
     }
     
-    ui_show_message(message);
-    
-    printf("Inserisci ID partita (0 per annullare): ");
-    char input[10];
-    fgets(input, sizeof(input), stdin);
-    int game_id = atoi(input);
-    
-    if (game_id == 0) return 0;
-    
-    char join_msg[20];
-    snprintf(join_msg, sizeof(join_msg), "JOIN:%d", game_id);
-    if (!network_send(conn, join_msg, 0)) {
-        ui_show_error("Errore invio richiesta join");
-        return -1;
-    }
+    return 1; 
+}
 
-    bytes = network_receive(conn, message, sizeof(message)-1, 0);
-    if (bytes <= 0) {
-        ui_show_error(bytes < 0 ? "Server disconnesso" : network_get_error());
-        return -1;
+int handle_post_game(NetworkConnection* conn, Game* game, int is_host) {
+    ui_show_board(game->board);
+    
+    
+    if (game->winner != PLAYER_NONE) {
+        char msg[50];
+        snprintf(msg, sizeof(msg), "%c ha vinto!", game->winner);
+        ui_show_message(msg);
+    } else if (game->is_draw) {
+        ui_show_message("Pareggio!");
     }
     
-    if (strstr(message, "JOIN_ACCEPTED")) {
-        return 1;
+    
+    if (is_host) {
+        int choice = ui_show_post_game_menu();
+        
+        if (choice == 1) {
+            
+            if (network_send(conn, "REMATCH", 0)) {
+                ui_show_message("Richiesta rematch inviata. Aspettando risposta...");
+                
+                char response[MAX_MSG_SIZE];
+                int bytes = network_receive_with_heartbeat(conn, response, sizeof(response), 0);
+                
+                if (bytes > 0 && strstr(response, "REMATCH_ACCEPTED")) {
+                    return 1; 
+                } else {
+                    ui_show_message("Rematch rifiutato o errore di rete");
+                    return 0;
+                }
+            }
+        } else {
+            network_send(conn, "QUIT", 0);
+            return 0;
+        }
     } else {
-        ui_show_error(strstr(message, "ERROR:") ? message : "Impossibile unirsi alla partita");
-        return 0;
+        
+        ui_show_message("Aspettando la decisione dell'host...");
+        
+        char message[MAX_MSG_SIZE];
+        int bytes = network_receive_with_heartbeat(conn, message, sizeof(message), 0);
+        
+        if (bytes > 0 && strstr(message, "REMATCH")) {
+            if (ui_ask_rematch_as_guest()) {
+                network_send(conn, "ACCEPT_REMATCH", 0);
+                return 1; 
+            } else {
+                network_send(conn, "DECLINE_REMATCH", 0);
+                return 0;
+            }
+        }
     }
+    
+    return 0;
 }
 
 int game_loop(NetworkConnection* conn, Game* game, int is_host) {
@@ -189,7 +260,49 @@ int game_loop(NetworkConnection* conn, Game* game, int is_host) {
         ui_show_message("Pareggio!");
     }
     
-    return 1; 
+    return handle_post_game(conn, game, is_host);
+}
+
+int connect_with_retry(NetworkConnection* conn, const char* player_name) {
+    int reconnect_attempts = 0;
+    const int max_reconnect_attempts = 3;
+    
+    while (reconnect_attempts < max_reconnect_attempts) {
+        if (!network_connect_to_server(conn)) {
+            reconnect_attempts++;
+            char error_msg[100];
+            snprintf(error_msg, sizeof(error_msg), 
+                    "Tentativo di connessione %d/%d fallito: %s", 
+                    reconnect_attempts, max_reconnect_attempts, network_get_error());
+            ui_show_error(error_msg);
+            
+            if (reconnect_attempts < max_reconnect_attempts) {
+                ui_show_message("Riprovo tra 3 secondi...");
+                Sleep(3000); 
+                continue;
+            } else {
+                ui_show_error("Impossibile connettersi al server");
+                return 0;
+            }
+        }
+        break; 
+    }
+    
+    
+    if (!network_register_name(conn, player_name)) {
+        ui_show_error(network_get_error());
+        return 0;
+    }
+    
+    return 1;
+}
+
+
+int handle_disconnection_in_game() {
+    ui_show_error("Connessione persa durante la partita");
+    ui_show_message("Tentativo di riconnessione...");
+    
+    return -1; 
 }
 
 int main() {
@@ -207,6 +320,12 @@ int main() {
 
     NetworkConnection conn;
     network_init(&conn);
+
+    if (!network_connect_with_retry(&conn, player_name)) {
+        ui_show_error(network_get_error());
+        WSACleanup();
+        return 1;
+    }
     
     
     int reconnect_attempts = 0;
@@ -243,7 +362,7 @@ int main() {
 
     
     while (1) {
-        int choice = ui_show_main_menu();
+        int choice = ui_show_styled_menu();
         int result = 0;
         
         switch (choice) {

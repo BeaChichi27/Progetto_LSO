@@ -7,6 +7,9 @@
 
 static Client *clients[MAX_CLIENTS];
 static CRITICAL_SECTION lobby_mutex;
+static char registered_names[MAX_CLIENTS][MAX_NAME_LEN];
+static int name_count = 0;
+
 
 int lobby_init() {
     InitializeCriticalSection(&lobby_mutex);
@@ -117,71 +120,40 @@ void lobby_broadcast_message(const char *message, Client *exclude) {
     LeaveCriticalSection(&lobby_mutex);
 }
 
+
 void lobby_handle_client_message(Client *client, const char *message) {
     if (!client || !message) return;
-    if (strncmp(message, "REGISTER:", 9) == 0) {
-        const char *name = message + 9;
-        
-        if (lobby_find_client_by_name(name)) {
-            network_send_to_client(client, "ERROR:Nome già in uso");
-            return;
-        }
-        
-        strncpy(client->name, name, MAX_NAME_LEN - 1);
-        client->name[MAX_NAME_LEN - 1] = '\0';
-        
-        network_send_to_client(client, "OK:Registrazione completata");
-        printf("Client registrato con nome: %s\n", name);
-        return;
-    }
-    if (strncmp(message, "CREATE_GAME", 11) == 0) {
-        int game_id = game_create_new(client);
-        if (game_id > 0) {
-            char response[64];
-            sprintf(response, "GAME_CREATED:%d", game_id);
-            network_send_to_client(client, response);
-            network_send_to_client(client, "WAITING_OPPONENT");  // Nuovo messaggio
-        } else {
-            network_send_to_client(client, "ERROR:Impossibile creare partita");
-        }
-    } else if (strncmp(message, "LIST_GAMES", 10) == 0) {
-        char response[MAX_MSG_SIZE];
-        game_list_available(response, sizeof(response));
-        network_send_to_client(client, response);
-    } else if (strncmp(message, "JOIN:", 5) == 0) {
-        int game_id = atoi(message + 5);
-        if (game_join(client, game_id)) {
-            network_send_to_client(client, "JOIN_ACCEPTED");
-        } else {
-            network_send_to_client(client, "ERROR:Impossibile unirsi alla partita");
-        }
-    } else if (strncmp(message, "MOVE:", 5) == 0) {
+    
+    
+    char cleaned_msg[MAX_MSG_SIZE];
+    strncpy(cleaned_msg, message, sizeof(cleaned_msg) - 1);
+    cleaned_msg[sizeof(cleaned_msg) - 1] = '\0';
+    
+    
+    char *newline = strchr(cleaned_msg, '\n');
+    if (newline) *newline = '\0';
+    
+    printf("Messaggio da %s: '%s'\n", client->name, cleaned_msg);
+    
+    if (strncmp(cleaned_msg, "CREATE_GAME", 11) == 0) {
+        handle_create_game(client);
+    } else if (strncmp(cleaned_msg, "JOIN:", 5) == 0) {
+        int game_id = atoi(cleaned_msg + 5);
+        handle_join_game(client, game_id);
+    } else if (strncmp(cleaned_msg, "LIST_GAMES", 10) == 0) {
+        handle_list_games(client);
+    } else if (strncmp(cleaned_msg, "MOVE:", 5) == 0) {
         int row, col;
-        if (sscanf(message + 5, "%d,%d", &row, &col) == 2) {
-            if (!game_make_move(client->game_id, client, row, col)) {
-                network_send_to_client(client, "ERROR:Mossa non valida");
-            }
-        } else {
-            network_send_to_client(client, "ERROR:Formato mossa non valido");
+        if (sscanf(cleaned_msg + 5, "%d,%d", &row, &col) == 2) {
+            handle_move(client, row, col);
         }
-    } else if (strncmp(message, "LEAVE", 5) == 0) {
-        game_leave(client);
-        network_send_to_client(client, "LEFT_GAME");
-    } else if (strncmp(message, "REMATCH", 7) == 0) {
-        game_reset(client->game_id);
-    }else if (strncmp(message, "CANCEL", 6) == 0) {
-        if (client->game_id > 0) {
-            game_leave(client);
-            network_send_to_client(client, "GAME_CANCELED");
-        }
+    } else if (strncmp(cleaned_msg, "REMATCH", 7) == 0) {
+        handle_rematch_request(client);
+    } else if (strncmp(cleaned_msg, "HEARTBEAT_ACK", 13) == 0) {
+        client->last_heartbeat_ack = time(NULL);
     } else {
         network_send_to_client(client, "ERROR:Comando sconosciuto");
     }
-    if (strcmp(message, "HEARTBEAT_ACK") == 0) {
-        client->last_heartbeat_ack = time(NULL);
-        return;
-    }
-    
 }
 
 void lobby_check_timeouts() {
@@ -226,4 +198,33 @@ int lobby_add_client_reference(Client *client) {
     
     LeaveCriticalSection(mutex);
     return 0; 
+}
+
+int is_name_duplicate(const char *name) {
+    for (int i = 0; i < name_count; i++) {
+        if (strcmp(registered_names[i], name) == 0) {
+            return 1;
+        }
+    }
+    return 0;
+}
+
+void add_name(const char *name) {
+    if (name_count < MAX_CLIENTS && !is_name_duplicate(name)) {
+        strncpy(registered_names[name_count], name, MAX_NAME_LEN - 1);
+        registered_names[name_count][MAX_NAME_LEN - 1] = '\0';
+        name_count++;
+    }
+}
+
+void remove_name(const char *name) {
+    for (int i = 0; i < name_count; i++) {
+        if (strcmp(registered_names[i], name) == 0) {
+            for (int j = i; j < name_count - 1; j++) {
+                strcpy(registered_names[j], registered_names[j + 1]);
+            }
+            name_count--;
+            break;
+        }
+    }
 }

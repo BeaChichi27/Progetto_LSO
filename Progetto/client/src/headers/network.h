@@ -35,4 +35,8 @@ int network_receive(NetworkConnection *conn, char *buffer, size_t buf_size, int 
 const char *network_get_error();
 void flush_input_buffer();
 
+int network_receive_with_heartbeat(NetworkConnection *conn, char *buffer, size_t buf_size, int use_udp);
+int network_wait_for_message_with_cancel(NetworkConnection *conn, char *buffer, size_t buf_size, int timeout_sec);
+int network_connect_with_retry(NetworkConnection *conn, const char* player_name);
+
 #endif

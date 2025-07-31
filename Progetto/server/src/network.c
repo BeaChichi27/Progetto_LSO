@@ -382,32 +382,81 @@ int network_receive_from_client(Client *client, char *buffer, size_t buf_size) {
 DWORD WINAPI network_handle_client_thread(LPVOID arg) {
     Client *client = (Client*)arg;
     char buffer[MAX_MSG_SIZE];
+
     
+    while (client->is_active && global_server->is_running) { 
+        int bytes = network_receive_from_client(client, buffer, sizeof(buffer));
+        if (bytes <= 0) {
+            
+            goto cleanup;
+        }
+
+        if (strncmp(buffer, "REGISTER:", 9) == 0) {
+            const char *name = buffer + 9;
+
+            if (strlen(name) == 0 || is_name_duplicate(name)) {
+                network_send_to_client(client, "ERROR:Nome non valido o duplicato");
+                continue; 
+            }
+
+            add_name(name);
+            strncpy(client->name, name, MAX_NAME_LEN - 1);
+            network_send_to_client(client, "REGISTRATION_OK");
+            break; 
+        }
+    }
+
+    
+    if (strlen(client->name) == 0) {
+        goto cleanup;
+    }
+
     
     if (!lobby_add_client_reference(client)) {
         printf("Errore aggiunta client alla lobby\n");
-        closesocket(client->client_fd);
-        free(client);
-        return 0;
+        goto cleanup; 
     }
+
     
     while (client->is_active && global_server->is_running) {
         int bytes = network_receive_from_client(client, buffer, sizeof(buffer));
-        flush_input_buffer();
         if (bytes <= 0) {
-            break;
+            break; 
         }
         lobby_handle_client_message(client, buffer);
     }
-    
+
+cleanup:
+    remove_name(client->name);
     lobby_remove_client(client);
     closesocket(client->client_fd);
     free(client);
     return 0;
 }
 
+
 void flush_input_buffer() {
     while (_kbhit()) {
         _getch();
     }
+}
+
+
+DWORD WINAPI network_heartbeat_thread(LPVOID arg) {
+    ServerNetwork *server = (ServerNetwork*)arg;
+    
+    while (server->is_running) {
+        Sleep(10000); 
+        
+        
+        lobby_broadcast_message("HEARTBEAT", NULL);
+        
+        
+        lobby_check_timeouts();
+        
+        
+        game_check_timeouts();
+    }
+    
+    return 0;
 }

@@ -3,6 +3,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
 
 static char last_error[256] = {0};
 
@@ -258,4 +259,88 @@ void flush_input_buffer() {
     while (_kbhit()) {
         _getch();
     }
+}
+
+
+
+int network_receive_with_heartbeat(NetworkConnection *conn, char *buffer, size_t buf_size, int use_udp) {
+    while (1) {
+        int bytes = network_receive(conn, buffer, buf_size, use_udp);
+        
+        if (bytes <= 0) {
+            return bytes; 
+        }
+        
+        
+        if (strcmp(buffer, "HEARTBEAT") == 0) {
+            network_send(conn, "HEARTBEAT_ACK", use_udp);
+            continue; 
+        }
+        
+        return bytes; 
+    }
+}
+
+int network_wait_for_message_with_cancel(NetworkConnection *conn, char *buffer, size_t buf_size, int timeout_sec) {
+    time_t start_time = time(NULL);
+    
+    while (1) {
+        
+        if (difftime(time(NULL), start_time) > timeout_sec) {
+            set_error("Timeout: nessuna risposta dal server");
+            return 0;
+        }
+        
+        
+        if (_kbhit() && _getch() == 27) {
+            set_error("Operazione annullata dall'utente");
+            network_send(conn, "CANCEL", 0);
+            return 0;
+        }
+        
+        
+        int bytes = network_receive_with_heartbeat(conn, buffer, buf_size, 0);
+        if (bytes > 0) {
+            return bytes;
+        }
+        if (bytes < 0) {
+            return bytes; 
+        }
+        
+        Sleep(100); 
+    }
+}
+
+int network_connect_with_retry(NetworkConnection *conn, const char* player_name) {
+    int reconnect_attempts = 0;
+    const int max_reconnect_attempts = 3;
+    
+    while (reconnect_attempts < max_reconnect_attempts) {
+        if (!network_connect_to_server(conn)) {
+            reconnect_attempts++;
+            char error_msg[256];
+            snprintf(error_msg, sizeof(error_msg), 
+                    "Tentativo di connessione %d/%d fallito: %s", 
+                    reconnect_attempts, max_reconnect_attempts, network_get_error());
+            
+            printf("ERRORE: %s\n", error_msg);
+            
+            if (reconnect_attempts < max_reconnect_attempts) {
+                printf("Riprovo tra 3 secondi...\n");
+                Sleep(3000);
+                continue;
+            } else {
+                set_error("Impossibile connettersi al server dopo 3 tentativi");
+                return 0;
+            }
+        }
+        break; 
+    }
+    
+    
+    if (!network_register_name(conn, player_name)) {
+        return 0;
+    }
+    
+    return 1;
 }
